@@ -15,7 +15,6 @@ from modules.pdf_generator import generate_pdf_bytes
 load_dotenv()
 
 APP_PASSWORD = os.getenv('APP_PASSWORD', 'admin')
-DATABASE_URL = os.getenv('DATABASE_URL')
 
 
 def init_session_state():
@@ -655,11 +654,13 @@ def main():
         else:
             return
     
-    if DATABASE_URL:
-        try:
-            init_db()
-        except Exception as e:
-            st.warning(f"Database not connected: {e}")
+    try:
+        init_db()
+    except ValueError as e:
+        st.error(str(e))
+        return
+    except Exception as e:
+        st.warning(f"Database not connected: {e}")
     
     page = sidebar_nav()
     

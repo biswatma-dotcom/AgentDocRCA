@@ -5,24 +5,41 @@ from modules.models import Base, Project, RequirementSet, DocBlockTemplate, DocV
 from contextlib import contextmanager
 
 
+_engine = None
+_SessionLocal = None
+
+
 def get_database_url():
-    return os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/agentdocrca')
+    url = os.getenv('DATABASE_URL')
+    if not url:
+        raise ValueError("DATABASE_URL not set. Please configure it in Streamlit Cloud secrets.")
+    return url
 
 
-engine = create_engine(get_database_url(), pool_pre_ping=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+def get_engine():
+    global _engine
+    if _engine is None:
+        _engine = create_engine(get_database_url(), pool_pre_ping=True)
+    return _engine
+
+
+def get_session_local():
+    global _SessionLocal
+    if _SessionLocal is None:
+        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
+    return _SessionLocal
 
 
 def get_db_session():
-    return SessionLocal()
+    return get_session_local()()
 
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=get_engine())
 
 
 def get_db() -> Session:
-    db = SessionLocal()
+    db = get_session_local()()
     try:
         yield db
     finally:
@@ -31,7 +48,7 @@ def get_db() -> Session:
 
 @contextmanager
 def get_db_context():
-    db = SessionLocal()
+    db = get_session_local()()
     try:
         yield db
         db.commit()
