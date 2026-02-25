@@ -18,6 +18,10 @@ def get_database_url():
     return url
 
 
+_engine = None
+_SessionLocal = None
+
+
 def get_engine():
     global _engine
     if _engine is None:
