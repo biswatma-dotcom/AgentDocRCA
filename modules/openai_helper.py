@@ -3,7 +3,11 @@ import json
 from openai import OpenAI
 
 
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+def get_openai_client():
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY not set. Please configure it in Streamlit Cloud secrets.")
+    return OpenAI(api_key=api_key)
 
 
 def normalize_requirements(raw_text: str) -> list:
@@ -21,6 +25,7 @@ Input requirements:
 """
 
     try:
+        client = get_openai_client()
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
