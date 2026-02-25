@@ -13,6 +13,10 @@ engine = create_engine(get_database_url(), pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+def get_db_session():
+    return SessionLocal()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 

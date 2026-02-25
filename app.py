@@ -3,7 +3,7 @@ import uuid
 import streamlit as st
 from dotenv import load_dotenv
 from modules.database import (
-    init_db, get_db, get_projects, get_project, create_project,
+    init_db, get_db_session, get_projects, get_project, create_project,
     get_requirement_sets, get_requirement_set, create_requirement_set, update_requirement_set_bullets,
     get_block_templates, create_block_template, update_block_template, delete_block_template,
     get_latest_version, get_version, get_all_versions, create_new_version, get_change_logs_for_version, create_change_log
@@ -65,7 +65,12 @@ def sidebar_nav():
     
     st.sidebar.markdown("---")
     
-    projects = list(get_projects())
+    db = get_db_session()
+    try:
+        projects = list(get_projects(db))
+    finally:
+        db.close()
+    
     project_options = ["-- Select Project --"] + [p.name for p in projects]
     
     if projects:
@@ -103,12 +108,20 @@ def page_projects():
             submitted = st.form_submit_button("Create Project")
             
             if submitted and name:
-                project = create_project(name=name, client_name=client_name)
+                db = get_db_session()
+                try:
+                    create_project(db, name=name, client_name=client_name)
+                finally:
+                    db.close()
                 st.success(f"Project '{name}' created!")
                 st.rerun()
     
     st.subheader("All Projects")
-    projects = get_projects()
+    db = get_db_session()
+    try:
+        projects = get_projects(db)
+    finally:
+        db.close()
     
     if not projects:
         st.info("No projects yet. Create one to get started.")
@@ -127,7 +140,12 @@ def page_requirements():
         st.warning("Please select a project from the sidebar.")
         return
     
-    project = get_project(st.session_state.selected_project_id)
+    db = get_db_session()
+    try:
+        project = get_project(db, st.session_state.selected_project_id)
+    finally:
+        db.close()
+    
     st.subheader(f"Requirements for: {project.name}")
     
     with st.expander("Add New Requirement Set", expanded=False):
@@ -137,17 +155,26 @@ def page_requirements():
             submitted = st.form_submit_button("Create Requirement Set")
             
             if submitted and title:
-                req_set = create_requirement_set(
-                    project_id=st.session_state.selected_project_id,
-                    title=title,
-                    raw_text=raw_text,
-                    created_by="user"
-                )
+                db = get_db_session()
+                try:
+                    create_requirement_set(
+                        db,
+                        project_id=st.session_state.selected_project_id,
+                        title=title,
+                        raw_text=raw_text,
+                        created_by="user"
+                    )
+                finally:
+                    db.close()
                 st.success(f"Requirement set '{title}' created!")
                 st.rerun()
     
     st.subheader("Existing Requirement Sets")
-    req_sets = get_requirement_sets(st.session_state.selected_project_id)
+    db = get_db_session()
+    try:
+        req_sets = get_requirement_sets(db, st.session_state.selected_project_id)
+    finally:
+        db.close()
     
     if not req_sets:
         st.info("No requirement sets yet.")
@@ -175,7 +202,11 @@ def page_requirements():
                     with st.spinner("Normalizing with AI..."):
                         bullets = normalize_requirements(rs.raw_text)
                         if bullets:
-                            update_requirement_set_bullets(str(rs.id), bullets)
+                            db = get_db_session()
+                            try:
+                                update_requirement_set_bullets(db, str(rs.id), bullets)
+                            finally:
+                                db.close()
                             st.success(f"Normalized to {len(bullets)} bullets!")
                             st.rerun()
                         else:
@@ -191,10 +222,19 @@ def page_block_settings():
         st.warning("Please select a project from the sidebar.")
         return
     
-    project = get_project(st.session_state.selected_project_id)
+    db = get_db_session()
+    try:
+        project = get_project(db, st.session_state.selected_project_id)
+    finally:
+        db.close()
+    
     st.subheader(f"Block Templates for: {project.name}")
     
-    blocks = get_block_templates(st.session_state.selected_project_id)
+    db = get_db_session()
+    try:
+        blocks = get_block_templates(db, st.session_state.selected_project_id)
+    finally:
+        db.close()
     
     with st.expander("Add New Block", expanded=False):
         with st.form("add_block_form"):
@@ -203,13 +243,17 @@ def page_block_settings():
             submitted = st.form_submit_button("Add Block")
             
             if submitted and name:
-                order_index = len(blocks) if blocks else 0
-                create_block_template(
-                    project_id=st.session_state.selected_project_id,
-                    name=name,
-                    order_index=order_index,
-                    placeholder=placeholder
-                )
+                db = get_db_session()
+                try:
+                    create_block_template(
+                        db,
+                        project_id=st.session_state.selected_project_id,
+                        name=name,
+                        order_index=len(blocks) if blocks else 0,
+                        placeholder=placeholder
+                    )
+                finally:
+                    db.close()
                 st.success(f"Block '{name}' added!")
                 st.rerun()
     
@@ -228,24 +272,40 @@ def page_block_settings():
             new_placeholder = st.text_area(f"Placeholder {block.id}", value=block.placeholder or "", height=50, key=f"placeholder_{block.id}")
         with col3:
             if st.button("Up", key=f"up_{block.id}") and i > 0:
-                update_block_template(str(block.id), order_index=i-1)
-                update_block_template(str(blocks[i-1].id), order_index=i)
+                db = get_db_session()
+                try:
+                    update_block_template(db, str(block.id), order_index=i-1)
+                    update_block_template(db, str(blocks[i-1].id), order_index=i)
+                finally:
+                    db.close()
                 st.rerun()
         with col4:
             if st.button("Down", key=f"down_{block.id}") and i < len(blocks) - 1:
-                update_block_template(str(block.id), order_index=i+1)
-                update_block_template(str(blocks[i+1].id), order_index=i)
+                db = get_db_session()
+                try:
+                    update_block_template(db, str(block.id), order_index=i+1)
+                    update_block_template(db, str(blocks[i+1].id), order_index=i)
+                finally:
+                    db.close()
                 st.rerun()
         
         col_save, col_del = st.columns([1, 1])
         with col_save:
             if st.button("Save", key=f"save_{block.id}"):
-                update_block_template(str(block.id), name=new_name, placeholder=new_placeholder)
+                db = get_db_session()
+                try:
+                    update_block_template(db, str(block.id), name=new_name, placeholder=new_placeholder)
+                finally:
+                    db.close()
                 st.success("Saved!")
                 st.rerun()
         with col_del:
             if st.button("Delete", key=f"del_{block.id}"):
-                delete_block_template(str(block.id))
+                db = get_db_session()
+                try:
+                    delete_block_template(db, str(block.id))
+                finally:
+                    db.close()
                 st.rerun()
         
         st.divider()
@@ -258,14 +318,22 @@ def page_editor():
         st.warning("Please select a project from the sidebar.")
         return
     
-    project = get_project(st.session_state.selected_project_id)
-    blocks = get_block_templates(st.session_state.selected_project_id)
+    db = get_db_session()
+    try:
+        project = get_project(db, st.session_state.selected_project_id)
+        blocks = get_block_templates(db, st.session_state.selected_project_id)
+    finally:
+        db.close()
     
     if not blocks:
         st.warning("No blocks defined. Go to Block Settings to add blocks.")
         return
     
-    latest_version = get_latest_version(st.session_state.selected_project_id)
+    db = get_db_session()
+    try:
+        latest_version = get_latest_version(db, st.session_state.selected_project_id)
+    finally:
+        db.close()
     
     if latest_version:
         st.info(f"Latest version: {latest_version.version_number}")
@@ -298,6 +366,12 @@ def page_editor():
     
     if st.button("Check for Changes"):
         st.session_state.current_content = current_content
+        
+        db = get_db_session()
+        try:
+            latest_version = get_latest_version(db, st.session_state.selected_project_id)
+        finally:
+            db.close()
         
         if latest_version and latest_version.blocks_content:
             changed_blocks = []
@@ -346,7 +420,11 @@ def page_editor():
         
         st.write("Map each changed block to requirements:")
         
-        requirement_sets = get_requirement_sets(st.session_state.selected_project_id)
+        db = get_db_session()
+        try:
+            requirement_sets = get_requirement_sets(db, st.session_state.selected_project_id)
+        finally:
+            db.close()
         
         if not requirement_sets:
             st.error("No requirement sets available. Create one first.")
@@ -383,7 +461,12 @@ def page_editor():
                 selected_req_id = [k for k, v in req_options.items() if v == selected_req_title][0]
                 mapping['requirement_set_id'] = selected_req_id
                 
-                req_set = get_requirement_set(selected_req_id)
+                db = get_db_session()
+                try:
+                    req_set = get_requirement_set(db, selected_req_id)
+                finally:
+                    db.close()
+                
                 if req_set and req_set.normalized_bullets:
                     bullet_options = {i: f"{i+1}. {b}" for i, b in enumerate(req_set.normalized_bullets)}
                     selected_bullets = st.multiselect(
@@ -418,8 +501,10 @@ def page_editor():
         
         if st.button("Confirm & Save Version"):
             if all_filled:
-                with get_db_context() as db:
+                db = get_db_session()
+                try:
                     new_version = create_new_version(
+                        db,
                         project_id=st.session_state.selected_project_id,
                         blocks_content=st.session_state.current_content,
                         created_by="user"
@@ -430,6 +515,7 @@ def page_editor():
                         mapping = st.session_state[key_prefix]
                         
                         create_change_log(
+                            db,
                             doc_version_id=str(new_version.id),
                             template_block_id=cb['block_id'],
                             before_text=cb['before'],
@@ -439,12 +525,14 @@ def page_editor():
                             reason_why=mapping['reason_why'],
                             impact=mapping['impact']
                         )
-                    
-                    st.session_state.show_change_mapping = False
-                    st.session_state.changed_blocks = []
-                    st.session_state.editor_content = st.session_state.current_content
-                    st.success(f"Version {new_version.version_number} saved!")
-                    st.rerun()
+                finally:
+                    db.close()
+                
+                st.session_state.show_change_mapping = False
+                st.session_state.changed_blocks = []
+                st.session_state.editor_content = st.session_state.current_content
+                st.success(f"Version {new_version.version_number} saved!")
+                st.rerun()
             else:
                 st.error("Please fill in all required fields (Requirement Set and Reason Why)")
         
@@ -461,10 +549,14 @@ def page_versions():
         st.warning("Please select a project from the sidebar.")
         return
     
-    project = get_project(st.session_state.selected_project_id)
-    blocks = get_block_templates(st.session_state.selected_project_id)
-    requirement_sets = get_requirement_sets(st.session_state.selected_project_id)
-    versions = get_all_versions(st.session_state.selected_project_id)
+    db = get_db_session()
+    try:
+        project = get_project(db, st.session_state.selected_project_id)
+        blocks = get_block_templates(db, st.session_state.selected_project_id)
+        requirement_sets = get_requirement_sets(db, st.session_state.selected_project_id)
+        versions = get_all_versions(db, st.session_state.selected_project_id)
+    finally:
+        db.close()
     
     if not versions:
         st.info("No versions yet.")
@@ -491,7 +583,11 @@ def page_versions():
                         st.text("[No content]")
             
             with col2:
-                change_logs = get_change_logs_for_version(str(version.id))
+                db = get_db_session()
+                try:
+                    change_logs = get_change_logs_for_version(db, str(version.id))
+                finally:
+                    db.close()
                 
                 if change_logs:
                     st.subheader("RCA - Change Log")
@@ -516,6 +612,12 @@ def page_versions():
                     st.info("No changes in this version (initial version)")
             
             st.subheader("Download")
+            
+            db = get_db_session()
+            try:
+                change_logs = get_change_logs_for_version(db, str(version.id))
+            finally:
+                db.close()
             
             col_d1, col_d2 = st.columns(2)
             

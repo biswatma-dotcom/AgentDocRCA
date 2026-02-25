@@ -7,7 +7,7 @@ load_dotenv()
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from modules.database import (
-    init_db, get_db_context, create_project, create_requirement_set, update_requirement_set_bullets,
+    init_db, get_db_session, create_project, create_requirement_set, update_requirement_set_bullets,
     create_block_template, create_new_version, create_change_log, get_block_templates, get_requirement_sets
 )
 
@@ -15,21 +15,30 @@ from modules.database import (
 def seed_data():
     init_db()
     
-    with get_db_context() as db:
-        existing_projects = db.execute("SELECT COUNT(*) FROM projects").fetchone()
-        if existing_projects[0] > 0:
-            print("Database already has data. Skipping seed.")
-            return
-        
-        print("Seeding sample data...")
-        
+    db = get_db_session()
+    try:
+        result = db.execute("SELECT COUNT(*) FROM projects")
+        count = result.fetchone()[0]
+    finally:
+        db.close()
+    
+    if count > 0:
+        print("Database already has data. Skipping seed.")
+        return
+    
+    print("Seeding sample data...")
+    
+    db = get_db_session()
+    try:
         project = create_project(
+            db,
             name="Voice Assistant for Banking",
             client_name="ABC Bank"
         )
         print(f"Created project: {project.name}")
         
         req_set = create_requirement_set(
+            db,
             project_id=str(project.id),
             title="Core Banking Requirements",
             raw_text="The voice agent must handle balance inquiries, transaction history, and fund transfers. It must support English and Spanish. It must comply with PCI-DSS for sensitive data. Response time must be under 3 seconds.",
@@ -44,10 +53,11 @@ def seed_data():
             "Comply with PCI-DSS",
             "Respond within 3 seconds"
         ]
-        update_requirement_set_bullets(str(req_set.id), bullets)
+        update_requirement_set_bullets(db, str(req_set.id), bullets)
         print(f"Created requirement set: {req_set.title}")
         
         block1 = create_block_template(
+            db,
             project_id=str(project.id),
             name="Persona",
             order_index=0,
@@ -55,6 +65,7 @@ def seed_data():
         )
         
         block2 = create_block_template(
+            db,
             project_id=str(project.id),
             name="Flow",
             order_index=1,
@@ -62,6 +73,7 @@ def seed_data():
         )
         
         block3 = create_block_template(
+            db,
             project_id=str(project.id),
             name="FAQs",
             order_index=2,
@@ -77,6 +89,7 @@ def seed_data():
         }
         
         version1 = create_new_version(
+            db,
             project_id=str(project.id),
             blocks_content=version1_content,
             created_by="admin",
@@ -92,6 +105,7 @@ def seed_data():
         }
         
         version2 = create_new_version(
+            db,
             project_id=str(project.id),
             blocks_content=version2_content,
             created_by="admin",
@@ -99,6 +113,7 @@ def seed_data():
         )
         
         create_change_log(
+            db,
             doc_version_id=str(version2.id),
             template_block_id=str(block1.id),
             before_text="Professional and helpful banking assistant. Uses formal but friendly tone.",
@@ -114,6 +129,8 @@ def seed_data():
         print("\nSeed data created successfully!")
         print(f"Project ID: {project.id}")
         print("You can now run the app and select this project.")
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
