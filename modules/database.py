@@ -7,15 +7,16 @@ from contextlib import contextmanager
 
 
 def get_database_url():
-    url = os.getenv('DATABASE_URL')
-    if not url:
-        try:
-            url = st.secrets["DATABASE_URL"]
-        except Exception:
-            pass
-    if not url:
-        raise ValueError("DATABASE_URL not set. Please configure it in Streamlit Cloud secrets.")
-    return url
+    url = os.environ.get('DATABASE_URL')
+    if url:
+        return url
+    
+    if hasattr(st, 'secrets'):
+        url = st.secrets.get("DATABASE_URL")
+        if url:
+            return url
+    
+    raise ValueError("DATABASE_URL not set. Please configure it in Streamlit Cloud secrets.")
 
 
 _engine = None

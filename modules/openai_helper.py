@@ -5,15 +5,16 @@ from openai import OpenAI
 
 
 def get_openai_client():
-    api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
-        try:
-            api_key = st.secrets["OPENAI_API_KEY"]
-        except Exception:
-            pass
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY not set. Please configure it in Streamlit Cloud secrets.")
-    return OpenAI(api_key=api_key)
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if api_key:
+        return OpenAI(api_key=api_key)
+    
+    if hasattr(st, 'secrets'):
+        api_key = st.secrets.get("OPENAI_API_KEY")
+        if api_key:
+            return OpenAI(api_key=api_key)
+    
+    raise ValueError("OPENAI_API_KEY not set. Please configure it in Streamlit Cloud secrets.")
 
 
 def normalize_requirements(raw_text: str) -> list:
