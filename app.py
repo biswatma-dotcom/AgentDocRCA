@@ -14,7 +14,14 @@ from modules.pdf_generator import generate_pdf_bytes
 
 load_dotenv()
 
-APP_PASSWORD = os.getenv('APP_PASSWORD', 'admin')
+def get_app_password():
+    pwd = os.getenv('APP_PASSWORD')
+    if not pwd:
+        try:
+            pwd = st.secrets["APP_PASSWORD"]
+        except Exception:
+            pwd = "admin"
+    return pwd
 
 
 def init_session_state():
@@ -31,7 +38,8 @@ def init_session_state():
 
 
 def check_password():
-    if not APP_PASSWORD:
+    app_password = get_app_password()
+    if not app_password:
         st.session_state.logged_in = True
         return True
     
@@ -43,7 +51,7 @@ def check_password():
     password = st.text_input("Enter Password", type="password")
     
     if st.button("Login"):
-        if password == APP_PASSWORD:
+        if password == get_app_password():
             st.session_state.logged_in = True
             st.session_state.password_attempted = True
             st.rerun()

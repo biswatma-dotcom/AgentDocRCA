@@ -1,16 +1,18 @@
 import os
+import streamlit as st
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from modules.models import Base, Project, RequirementSet, DocBlockTemplate, DocVersion, DocChangeLog
 from contextlib import contextmanager
 
 
-_engine = None
-_SessionLocal = None
-
-
 def get_database_url():
     url = os.getenv('DATABASE_URL')
+    if not url:
+        try:
+            url = st.secrets["DATABASE_URL"]
+        except Exception:
+            pass
     if not url:
         raise ValueError("DATABASE_URL not set. Please configure it in Streamlit Cloud secrets.")
     return url
